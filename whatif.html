@@ -1,0 +1,688 @@
+<meta charset="utf-8">
+<title>What-If Business Simulator</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: sticky live-readout bar, lever sidebar left, analysis column right (stacks on phones). */
+:root{
+  --bg:#eef1f5; --surface:#ffffff; --surface2:#f4f6fa; --line:#d8dee8;
+  --ink:#0f1b2d; --ink2:#46546a; --ink3:#74829a;
+  --accent:#1c5cab; --accent-ink:#ffffff; --accent-soft:rgba(28,92,171,.12);
+  --good:#0d7a53; --good-bg:rgba(13,122,83,.12);
+  --warn:#9a6208; --warn-bg:rgba(201,133,0,.16);
+  --bad:#c12b2a; --bad-bg:rgba(193,43,42,.12);
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#d99500; --s5:#e0629a;
+  --shadow:0 1px 2px rgba(15,27,45,.06);
+  --f-display:"Bricolage Grotesque","Segoe UI",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0a111b; --surface:#111a27; --surface2:#17222f; --line:#233144;
+  --ink:#e9eef6; --ink2:#aebacb; --ink3:#7f8da3;
+  --accent:#5598e7; --accent-ink:#06101d; --accent-soft:rgba(85,152,231,.16);
+  --good:#37c78c; --good-bg:rgba(55,199,140,.14);
+  --warn:#e8a93b; --warn-bg:rgba(232,169,59,.16);
+  --bad:#f26562; --bad-bg:rgba(242,101,98,.15);
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181;
+  --shadow:none; color-scheme:dark;}}
+:root[data-theme="dark"]{
+  --bg:#0a111b; --surface:#111a27; --surface2:#17222f; --line:#233144;
+  --ink:#e9eef6; --ink2:#aebacb; --ink3:#7f8da3;
+  --accent:#5598e7; --accent-ink:#06101d; --accent-soft:rgba(85,152,231,.16);
+  --good:#37c78c; --good-bg:rgba(55,199,140,.14);
+  --warn:#e8a93b; --warn-bg:rgba(232,169,59,.16);
+  --bad:#f26562; --bad-bg:rgba(242,101,98,.15);
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181;
+  --shadow:none; color-scheme:dark;}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14px;line-height:1.5;
+  padding-block:0 56px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:30;background:var(--bg)}
+button{font:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.wrap{max-width:1480px;margin:0 auto}
+
+/* top bar */
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--bg);border-bottom:1px solid var(--line);
+  display:flex;flex-wrap:wrap;align-items:center;gap:10px 22px;padding:12px 0}
+.brand{display:flex;align-items:center;gap:12px;min-width:0;flex:1 1 280px}
+.logo{flex:none;width:34px;height:34px;border-radius:9px;background:var(--accent);display:grid;place-items:center}
+.brand h1{font-family:var(--f-display);font-size:19px;line-height:1.1;margin:0;font-weight:700;letter-spacing:-.01em}
+.brand p{margin:2px 0 0;color:var(--ink3);font-size:12px}
+.live{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.live .kv{display:flex;flex-direction:column;line-height:1.2}
+.live .kv span{font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink3)}
+.live .kv b{font-family:var(--f-mono);font-weight:500;font-size:15px}
+.pill{display:inline-flex;align-items:center;gap:6px;border-radius:99px;padding:3px 10px 3px 8px;font-size:12px;font-weight:600;white-space:nowrap}
+.pill i{width:8px;height:8px;border-radius:50%;background:currentColor;display:inline-block}
+.pill.good{color:var(--good);background:var(--good-bg)} .pill.warn{color:var(--warn);background:var(--warn-bg)} .pill.bad{color:var(--bad);background:var(--bad-bg)}
+.ghost{background:transparent;border:1px solid var(--line);border-radius:8px;padding:6px 11px;font-size:12.5px;color:var(--ink2)}
+.ghost:hover{border-color:var(--ink3);color:var(--ink)}
+
+/* grid */
+.app{display:grid;grid-template-columns:344px minmax(0,1fr);gap:24px;align-items:start;margin-top:20px}
+.side{position:sticky;top:calc(env(safe-area-inset-top,0px) + 76px);max-height:calc(100vh - 96px);overflow:auto;
+  background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow)}
+.side>summary{list-style:none;padding:14px 16px;font-family:var(--f-display);font-weight:700;font-size:16px;display:flex;justify-content:space-between;align-items:center;cursor:pointer}
+.side>summary::-webkit-details-marker{display:none}
+.side>summary::after{content:"Hide";font:500 12px var(--f-body);color:var(--ink3)}
+.side:not([open])>summary::after{content:"Show"}
+.side .inner{padding:0 16px 16px;display:flex;flex-direction:column;gap:18px}
+.presets{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--line);background:var(--surface2);border-radius:99px;padding:5px 11px;font-size:12px;color:var(--ink2)}
+.chip:hover{border-color:var(--accent);color:var(--ink)}
+.chip[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent);color:var(--ink)}
+.grp h3{margin:0 0 8px;font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink3);font-weight:600;display:flex;align-items:center;gap:8px}
+.grp h3::after{content:"";height:1px;background:var(--line);flex:1}
+.lv{padding:7px 0}
+.lv .top{display:flex;justify-content:space-between;gap:10px;font-size:13px}
+.lv .top output{font-family:var(--f-mono);font-size:12.5px;color:var(--ink);white-space:nowrap}
+.lv input[type=range]{width:100%;accent-color:var(--accent);margin:4px 0 0;height:20px}
+.lv .h{font-size:11.5px;color:var(--ink3);line-height:1.35}
+.main{display:flex;flex-direction:column;gap:20px;min-width:0}
+
+/* panels */
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:18px;min-width:0}
+.panel>header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.panel h2{font-family:var(--f-display);font-size:17px;margin:0;font-weight:700;letter-spacing:-.005em}
+.panel .sub{margin:2px 0 0;color:var(--ink3);font-size:12.5px;max-width:62ch}
+.cols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
+
+/* hero */
+.hero{padding:22px 22px 0}
+.eyebrow{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink3);font-weight:600}
+.hero h2{font-family:var(--f-display);font-size:clamp(24px,3.2vw,34px);line-height:1.12;margin:6px 0 8px;letter-spacing:-.02em;text-wrap:balance}
+.hero p.ans{margin:0 0 18px;color:var(--ink2);max-width:78ch;font-size:14.5px}
+.kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));border-top:1px solid var(--line);margin:0 -22px}
+.kpi{padding:14px 22px 16px;border-right:1px solid var(--line);min-width:0}
+.kpi:last-child{border-right:0}
+.kpi .l{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink3);font-weight:600}
+.kpi .v{font-family:var(--f-mono);font-size:24px;font-weight:500;margin:4px 0 2px;letter-spacing:-.02em;white-space:nowrap}
+.kpi .c{font-size:12px;color:var(--ink2)}
+.up{color:var(--good)} .dn{color:var(--bad)}
+
+/* agent */
+.agent{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:20px}
+.trace{display:flex;flex-direction:column;gap:0;margin:0;padding:0;list-style:none}
+.trace li{display:grid;grid-template-columns:78px 1fr;gap:10px;padding:9px 0;border-bottom:1px dashed var(--line)}
+.trace li:last-child{border-bottom:0}
+.tag{font-family:var(--f-mono);font-size:11px;font-weight:500;letter-spacing:.04em;text-transform:uppercase;color:var(--accent);padding-top:2px}
+.trace li.new{animation:fadein .35s ease}
+@keyframes fadein{from{opacity:.0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.recs{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+.rec{display:grid;grid-template-columns:1fr auto;gap:4px 12px;align-items:center;border:1px solid var(--line);background:var(--surface2);border-radius:9px;padding:10px 12px}
+.rec b{font-weight:600;font-size:13.5px}
+.rec .m{grid-column:1;font-size:12px;color:var(--ink2)}
+.btn{border:0;background:var(--accent);color:var(--accent-ink);border-radius:8px;padding:7px 13px;font-weight:600;font-size:12.5px}
+.btn:hover{filter:brightness(1.08)}
+.btn.alt{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.btn[disabled]{opacity:.5;cursor:default}
+.rec .btn{grid-row:1 / span 2;grid-column:2}
+.plan{border:1px solid var(--accent);background:var(--accent-soft);border-radius:10px;padding:12px;margin-top:12px}
+.plan h4{margin:0 0 6px;font-size:13.5px}
+.plan table{width:100%;border-collapse:collapse;font-size:12.5px;margin:6px 0 10px}
+.plan td{padding:2px 0}.plan td:last-child{text-align:right;font-family:var(--f-mono)}
+.plan .row{display:flex;gap:8px;flex-wrap:wrap}
+.chat{display:flex;flex-direction:column;min-height:0;border:1px solid var(--line);border-radius:10px;background:var(--surface2)}
+.log{height:300px;overflow:auto;padding:12px;display:flex;flex-direction:column;gap:9px}
+.msg{max-width:92%;padding:8px 11px;border-radius:10px;font-size:13px;line-height:1.45;white-space:pre-wrap}
+.msg.a{background:var(--surface);border:1px solid var(--line);align-self:flex-start}
+.msg.u{background:var(--accent);color:var(--accent-ink);align-self:flex-end}
+.sugg{display:flex;flex-wrap:wrap;gap:6px;padding:0 12px 10px}
+.ask{display:flex;gap:8px;padding:10px;border-top:1px solid var(--line)}
+.ask input{flex:1;min-width:0;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font:inherit}
+.fine{font-size:11.5px;color:var(--ink3);margin:10px 0 0}
+
+/* charts */
+.legend{display:flex;flex-wrap:wrap;gap:6px 8px;margin-bottom:8px}
+.lg{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);background:transparent;border-radius:99px;padding:3px 10px;font-size:12px;color:var(--ink2)}
+.lg[aria-pressed="false"]{opacity:.5}
+.lg svg{width:18px;height:8px;flex:none}
+.chartbox{position:relative}
+.chartbox svg{display:block;width:100%;overflow:visible}
+.grid line{stroke:var(--line);stroke-width:1}
+.ax text{fill:var(--ink3);font-size:11px;font-family:var(--f-mono)}
+.tip{position:absolute;pointer-events:none;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:12px;box-shadow:0 6px 18px rgba(0,0,0,.18);z-index:5;min-width:170px}
+.tip b{display:block;margin-bottom:4px;font-size:12.5px}
+.tip div{display:flex;justify-content:space-between;gap:14px;color:var(--ink2)}
+.tip div span:last-child{font-family:var(--f-mono);color:var(--ink)}
+.scroll{overflow-x:auto}
+.heat{display:grid;grid-template-columns:104px repeat(12,minmax(30px,1fr));gap:3px;min-width:520px;font-size:12px}
+.heat .rl{display:flex;align-items:center;gap:7px;color:var(--ink2);padding-right:4px}
+.heat .rl i{width:9px;height:9px;border-radius:2px;flex:none}
+.heat .ch{color:var(--ink3);text-align:center;font-size:11px;font-family:var(--f-mono)}
+.cell{height:34px;border-radius:5px;display:grid;place-items:center;font-family:var(--f-mono);font-size:11.5px;color:var(--ink);border:1px solid transparent}
+.cell.hot{background:var(--bad);color:#fff;font-weight:600}
+.cell.tight{background:var(--warn-bg);border-color:var(--warn);color:var(--ink)}
+.key{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:10px;font-size:12px;color:var(--ink2)}
+.key span{display:inline-flex;align-items:center;gap:6px}
+.key i{width:14px;height:10px;border-radius:3px;display:inline-block}
+.rank{display:flex;flex-direction:column;gap:12px}
+.rk .t{display:flex;justify-content:space-between;gap:8px;font-size:13px;margin-bottom:5px}
+.rk .t span:last-child{font-family:var(--f-mono)}
+.track{position:relative;height:10px;background:var(--surface2);border-radius:5px;border:1px solid var(--line)}
+.track b{position:absolute;left:0;top:0;bottom:0;border-radius:4px}
+.track u{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--ink);opacity:.75;text-decoration:none}
+.rk .n{font-size:11.5px;color:var(--ink3);margin-top:4px}
+.stats3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:12px}
+.stats3 div{border-top:1px solid var(--line);padding-top:8px}
+.stats3 span{display:block;font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink3)}
+.stats3 b{font-family:var(--f-mono);font-weight:500;font-size:18px}
+table.cmp{width:100%;border-collapse:collapse;font-size:13px;min-width:720px}
+table.cmp th{font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink3);text-align:right;padding:6px 10px;font-weight:600;border-bottom:1px solid var(--line)}
+table.cmp th:first-child,table.cmp td:first-child{text-align:left}
+table.cmp td{padding:9px 10px;text-align:right;border-bottom:1px solid var(--line);font-family:var(--f-mono);font-size:12.5px}
+table.cmp td:first-child{font-family:var(--f-body);font-size:13px}
+table.cmp tr.cur td{background:var(--accent-soft)}
+table.cmp td button{background:none;border:0;padding:0;text-align:left;font-weight:600;color:var(--ink)}
+table.cmp td button:hover{color:var(--accent)}
+table.cmp td:last-child{text-align:left}
+details.assume summary{cursor:pointer;font-family:var(--f-display);font-weight:700;font-size:17px}
+.atab{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px;margin-top:14px}
+.atab h4{margin:0 0 6px;font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink3)}
+.atab dl{margin:0}.atab dl div{display:flex;justify-content:space-between;gap:12px;padding:3px 0;border-bottom:1px dashed var(--line);font-size:12.5px}
+.atab dt{color:var(--ink2)}.atab dd{margin:0;font-family:var(--f-mono)}
+
+@media (max-width:1060px){
+  .app{grid-template-columns:minmax(0,1fr)}
+  .side{position:static;max-height:none}
+  .agent,.cols{grid-template-columns:minmax(0,1fr)}
+  .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .kpi{border-bottom:1px solid var(--line)}
+  .kpi:nth-child(2n){border-right:0}
+}
+@media (max-width:520px){
+  .hero,.panel{padding:14px}
+  .hero{padding-bottom:0}.kpis{margin:0 -14px}.kpi{padding:12px 14px}
+  .kpi .v{font-size:20px}.live .kv:nth-child(n+3){display:none}
+  .trace li{grid-template-columns:1fr;gap:2px}
+}
+@media (prefers-reduced-motion:reduce){.trace li.new{animation:none}}
+</style>
+
+<div class="wrap">
+  <div class="bar">
+    <div class="brand">
+      <div class="logo" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 20 20"><path d="M3 15V9m5 6V4m5 11V7m4 8V11" stroke="var(--accent-ink)" stroke-width="2.4" stroke-linecap="round" fill="none"/></svg></div>
+      <div><h1>What-If Business Simulator</h1><p>Scenario agent for sales, workforce, stock and delivery capacity · Nov 2026 – Oct 2027</p></div>
+    </div>
+    <div class="live" aria-live="polite">
+      <span class="pill" id="vPill"></span>
+      <div class="kv"><span>Fill rate</span><b id="lFill"></b></div>
+      <div class="kv"><span>Profit vs today</span><b id="lProf"></b></div>
+      <button class="ghost" id="theme" type="button">Theme</button>
+    </div>
+  </div>
+
+  <div class="app">
+    <details class="side" id="side" open>
+      <summary>Scenario levers</summary>
+      <div class="inner">
+        <div class="grp"><h3>Start from</h3><div class="presets" id="presets"></div></div>
+        <div id="levers"></div>
+        <button class="ghost" id="reset" type="button">Reset to today's operations</button>
+      </div>
+    </details>
+
+    <main class="main">
+      <section class="panel hero" aria-labelledby="qh">
+        <div class="eyebrow">Management's question</div>
+        <h2 id="qh">Can the business support +20% sales?</h2>
+        <p class="ans" id="answer"></p>
+        <div class="kpis" id="kpis"></div>
+      </section>
+
+      <section class="panel" aria-labelledby="ah">
+        <header><div><h2 id="ah">Scenario agent</h2><p class="sub">It reads the simulation, finds the bottleneck, tests candidate actions on the model and proposes a plan. You approve every change.</p></div>
+          <button class="btn" id="opt" type="button">Auto-optimise plan</button></header>
+        <div class="agent">
+          <div><ol class="trace" id="trace"></ol><div id="plan"></div><div class="recs" id="recs"></div></div>
+          <div class="chat"><div class="log" id="log" role="log" aria-live="polite"></div><div class="sugg" id="sugg"></div>
+            <form class="ask" id="askf"><input id="askin" type="text" autocomplete="off" aria-label="Ask the agent" placeholder="Try: what if sales grow 30% and we hire 20 people?"><button class="btn" type="submit">Ask</button></form></div>
+        </div>
+        <p class="fine">Everything runs in your browser on the assumed data below. The agent's reasoning is rule-based and calls the same simulator you see here.</p>
+      </section>
+
+      <section class="panel">
+        <header><div><h2>Demand vs. what operations can deliver</h2><p class="sub">The blue line is the most the plant, supply base and fleet can ship each month, counting stock drawn down. Where demand sits above it, sales are lost.</p></div></header>
+        <div class="legend" id="capLegend"></div>
+        <div class="chartbox" id="cap"></div>
+      </section>
+
+      <section class="panel">
+        <header><div><h2>Resource load by month</h2><p class="sub">Load is what the plan needs divided by what the resource can give. Anything above 100% cannot be met.</p></div></header>
+        <div class="scroll"><div class="heat" id="heat"></div></div>
+        <div class="key"><span><i style="background:color-mix(in srgb,var(--accent) 45%,var(--surface))"></i>Comfortable, under 85%</span><span><i style="background:var(--warn-bg);border:1px solid var(--warn)"></i>Tight, 85–100%</span><span><i style="background:var(--bad)"></i>Over capacity, above 100%</span></div>
+      </section>
+
+      <div class="cols">
+        <section class="panel"><header><div><h2>Where it breaks</h2><p class="sub">Peak load per resource and the sales each one cost.</p></div></header><div class="rank" id="rank"></div></section>
+        <section class="panel"><header><div><h2>Profit bridge</h2><p class="sub">Annual profit change versus today, by cost line.</p></div></header><div class="chartbox" id="wf"></div></section>
+      </div>
+
+      <section class="panel">
+        <header><div><h2>Risk across 300 demand scenarios</h2><p class="sub">Demand is shocked month by month using your volatility setting. Each bar counts simulated years.</p></div></header>
+        <div class="chartbox" id="mc"></div><div class="stats3" id="mcs"></div>
+      </section>
+
+      <section class="panel">
+        <header><div><h2>Strategy comparison</h2><p class="sub">Every row is a full 12-month run. Select one to load it into the levers.</p></div><button class="ghost" id="save" type="button">Save current as "My scenario"</button></header>
+        <div class="scroll"><table class="cmp" id="cmp"></table></div>
+      </section>
+
+      <section class="panel">
+        <details class="assume"><summary>Assumed data behind the model</summary>
+          <div class="atab" id="assume"></div>
+          <p class="fine">All figures are illustrative for a mid-size manufacturer. Replace them in the K table in the script to model your own company.</p></details>
+      </section>
+    </main>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ---------- assumed data ---------- */
+const K={baseDemand:9000,price:1350,mat:560,wage:38000,E0:92,uph:105,machCap:10000,supCap:10200,truckCap:800,trucks0:13,whCap:6000,
+  ownLog:45,plLog:115,holdFG:18,holdRM:12,overhead:1500000,shiftPer10:350000,truckCost:90000,recruit:25000,whRent:22,lostPen:150,
+  expPrem:0.25,otEff:0.85,elast:1.6,openFG:3600,openRM:6000};
+const SEASON=[1.10,1.04,.93,.91,1.0,.98,.98,.94,.93,1.0,1.04,1.07];
+const MONTHS=['Nov','Dec','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct'];
+const RES=['Workforce','Machines','Raw material','Warehouse','Logistics'];
+const RCOL=['--s1','--s2','--s3','--s4','--s5'];
+const BASE0={growth:0,ramp:3,disc:0,vol:8,hires:0,ot:0,shift:0,sup:0,rmW:3,fgD:10,wh:0,trucks:0,pl:0,target:95};
+const PRESETS=[
+ ['Business as usual',{...BASE0}],
+ ['Push +20%, no changes',{...BASE0,growth:20}],
+ ['Overtime sprint',{...BASE0,growth:20,ot:20,fgD:20}],
+ ['Scale-up plan',{...BASE0,growth:20,hires:18,ot:8,shift:15,sup:12,rmW:4,fgD:20,wh:1500,trucks:3}],
+ ['Promo-led',{...BASE0,growth:8,disc:8,hires:6,ot:8,fgD:15}],
+ ['Stress test +35%',{...BASE0,growth:35,ramp:2}]
+];
+const LEVERS=[
+ {g:'Demand scenario',k:'growth',l:'Sales growth target',min:0,max:40,step:1,f:v=>'+'+v+'%',h:'Extra demand versus today, reached over the ramp-up period.'},
+ {k:'ramp',l:'Ramp-up period',min:1,max:6,step:1,f:v=>v+(v>1?' months':' month'),h:'Months until the full uplift arrives.'},
+ {k:'disc',l:'Promo discount',min:0,max:15,step:1,f:v=>v+'%',h:'Each 1% discount adds about 1.6% demand but lowers the price on every unit.'},
+ {k:'vol',l:'Demand volatility',min:0,max:25,step:1,f:v=>'±'+v+'%',h:'Month-to-month swing used by the risk simulation.'},
+ {g:'Workforce',k:'hires',l:'New hires',min:0,max:60,step:1,f:v=>v+' FTE',h:'Join in December. 50% productive in month one, 80% in month two.'},
+ {k:'ot',l:'Overtime allowance',min:0,max:25,step:1,f:v=>'+'+v+'% hours',h:'Costs 1.5× wage per unit. Above 15% burnout risk rises.'},
+ {g:'Production',k:'shift',l:'Second-shift machine hours',min:0,max:40,step:5,f:v=>'+'+v+'%',h:'₹3.5 L a month per +10% machine hours.'},
+ {g:'Supply and stock',k:'sup',l:'Supplier allocation boost',min:0,max:30,step:5,f:v=>'+'+v+'%',h:'Expedited units cost 25% extra on materials.'},
+ {k:'rmW',l:'Raw-material buffer',min:1,max:8,step:1,f:v=>v+' wk',h:'Weeks of materials held. Costs ₹12 per unit a month.'},
+ {k:'fgD',l:'Finished-goods cover',min:0,max:45,step:1,f:v=>v+' days',h:'Pre-builds stock ahead of the festive peak, up to warehouse space.'},
+ {k:'wh',l:'Extra warehouse space',min:0,max:6000,step:500,f:v=>nf(v)+' units',h:'₹22 per unit a month on top of the 6,000 owned.'},
+ {g:'Logistics',k:'trucks',l:'Extra trucks',min:0,max:10,step:1,f:v=>'+'+v,h:'800 units a month each, ₹90 K a month.'},
+ {k:'pl',l:'3PL spot capacity',min:0,max:4000,step:250,f:v=>nf(v)+' units/mo',h:'₹115 a unit versus ₹45 on the own fleet.'},
+ {g:'Guardrail',k:'target',l:'Service-level target',min:80,max:100,step:1,f:v=>v+'% fill',h:'Share of demand that must ship.'}
+];
+const OPT_RANGE={hires:[0,60,5],ot:[0,25,5],shift:[0,40,5],sup:[0,30,5],rmW:[1,8,1],fgD:[0,45,5],wh:[0,6000,500],trucks:[0,10,1],pl:[0,4000,500]};
+
+/* ---------- helpers ---------- */
+const $=s=>document.querySelector(s);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const nf=n=>Math.round(n).toLocaleString('en-IN');
+function inr(v,sign){const a=Math.abs(v);let s=a>=1e7?'₹'+(a/1e7).toFixed(2)+' Cr':a>=1e5?'₹'+(a/1e5).toFixed(1)+' L':'₹'+nf(a);
+  if(v<0)return '−'+s; return (sign&&v>0?'+':'')+s;}
+const pc=(v,d=1)=>(v*100).toFixed(d)+'%';
+function mulberry(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const R=mulberry(20261023);
+function gauss(){let u=0;while(!u)u=R();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*R())}
+const RUNS=300,GZ=Array.from({length:RUNS},()=>({l:gauss(),g:Array.from({length:12},gauss)}));
+function shock(run,vol){const s=GZ[run],v=vol/100;return s.g.map(g=>Math.max(.5,1+v*(.5*s.l+g)))}
+
+/* ---------- simulation core ---------- */
+function sim(c,z){
+  const M=[];let fg=K.openFG,rm=K.openRM;
+  const rmT=c.rmW/4.33*K.baseDemand,whE=K.whCap+c.wh;
+  const nom=SEASON.map((s,t)=>K.baseDemand*s*(1+(c.growth/100+K.elast*c.disc/100)*Math.min(1,(t+1)/c.ramp)));
+  const T={rev:0,mat:0,lab:0,fixed:0,logc:0,hold:0,pen:0,profit:0,shipped:0,dem:0,lost:0,lostRev:0,otMax:0};
+  const peak=[0,0,0,0,0],peakM=[0,0,0,0,0],over=[0,0,0,0,0],lostBy={};
+  for(let t=0;t<12;t++){
+    const dem=nom[t]*(z?z[t]:1);
+    const hp=t<1?0:t===1?.5:t===2?.8:1, hAct=t>=1?c.hires:0;
+    const laborStd=(K.E0+c.hires*hp)*K.uph, laborCap=laborStd*(1+K.otEff*c.ot/100);
+    const machCap=K.machCap*(1+c.shift/100), supEff=K.supCap*(1+c.sup/100);
+    const logOwn=(K.trucks0+c.trucks)*K.truckCap, logCap=logOwn+c.pl;
+    const dNext=t<11?nom[t+1]:nom[t];
+    const fgT=Math.min(whE,c.fgD/30*dNext);
+    const need=Math.max(0,nom[t]+fgT-fg);
+    const supply=Math.min(supEff,Math.max(0,need+rmT-rm)), rmAvail=rm+supply;
+    const prodCap=Math.min(laborCap,machCap,rmAvail), prod=Math.min(need,prodCap);
+    const avail=fg+prod, shipped=Math.min(dem,avail,logCap), lost=Math.max(0,dem-shipped);
+    const fgEnd=avail-shipped, rmEnd=rmAvail-prod;
+    let bind='';
+    if(lost>1){ if(logCap<Math.min(dem,avail)) bind='Logistics';
+      else if(prod<need-1){const m=Math.min(laborCap,machCap,rmAvail); bind=m===laborCap?'Workforce':m===machCap?'Machines':'Raw material'}
+      else bind='Warehouse'; lostBy[bind]=(lostBy[bind]||0)+lost;}
+    const otUnits=Math.max(0,prod-laborStd);
+    const price=K.price*(1-c.disc/100);
+    const rev=shipped*price;
+    const mat=prod*K.mat+Math.max(0,supply-K.supCap)*K.mat*K.expPrem;
+    const lab=(K.E0+hAct)*K.wage+otUnits*K.wage/K.uph*1.5/K.otEff+(t===1?c.hires*K.recruit:0);
+    const fixed=K.overhead+c.shift/10*K.shiftPer10+c.trucks*K.truckCost+c.wh*K.whRent;
+    const logc=Math.min(shipped,logOwn)*K.ownLog+Math.max(0,shipped-logOwn)*K.plLog;
+    const hold=fgEnd*K.holdFG+rmEnd*K.holdRM, pen=lost*K.lostPen;
+    const u=[need/laborCap,need/machCap,need/(rm+supEff),fgEnd/whE,Math.min(dem,avail)/logCap];
+    u.forEach((x,i)=>{if(x>peak[i]){peak[i]=x;peakM[i]=t} if(x>1.001)over[i]++});
+    T.rev+=rev;T.mat+=mat;T.lab+=lab;T.fixed+=fixed;T.logc+=logc;T.hold+=hold;T.pen+=pen;
+    T.profit+=rev-mat-lab-fixed-logc-hold-pen;T.shipped+=shipped;T.dem+=dem;T.lost+=lost;T.lostRev+=lost*price;
+    T.otMax=Math.max(T.otMax,otUnits/laborStd);
+    M.push({t,dem,shipped,lost,bind,u,fgStart:fg,fgEnd,need,prod,laborCap,machCap,rmCap:rm+supEff,logCap,
+      deliver:Math.min(Math.min(laborCap,machCap,rm+supEff)+fg,logCap)});
+    fg=fgEnd;rm=rmEnd;
+  }
+  T.fill=T.dem>0?T.shipped/T.dem:1;
+  return {M,T,peak,peakM,over,lostBy};
+}
+const BASE=sim(BASE0);
+function verdict(c,r,mc){
+  const tg=c.target/100,ps=mc?mc.pSvc:1;
+  if(r.T.fill>=tg&&ps>=.75)return 'good';
+  if(r.T.fill<tg-.02||ps<.5)return 'bad'; return 'warn';
+}
+const VTXT={good:'Feasible',warn:'At risk',bad:'Not feasible'};
+function mcRun(c,runs=RUNS){
+  const fills=[],profits=[];
+  for(let i=0;i<runs;i++){const r=sim(c,shock(i,c.vol));fills.push(r.T.fill);profits.push(r.T.profit)}
+  const fs=[...fills].sort((a,b)=>a-b),ps=[...profits].sort((a,b)=>a-b),q=(a,p)=>a[Math.floor(p*(a.length-1))];
+  return {fills,profits,ps,fillMean:fills.reduce((a,b)=>a+b,0)/runs,profitMean:profits.reduce((a,b)=>a+b,0)/runs,
+    fillP10:q(fs,.1),pSvc:fills.filter(f=>f>=c.target/100-1e-9).length/runs,pBeat:profits.filter(p=>p>=BASE.T.profit).length/runs,
+    p10:q(ps,.1),p50:q(ps,.5),p90:q(ps,.9)};
+}
+
+/* ---------- optimiser (agent tool) ---------- */
+function optimise(c0){
+  const runs=40,keys=Object.keys(OPT_RANGE);
+  const score=c=>{const s=mcRun(c,runs);const ok=s.fillMean>=c.target/100&&s.pSvc>=.8;
+    return ok?s.profitMean:-1e12+s.fillMean*1e9+s.pSvc*1e8};
+  const rnd=k=>{const [a,b,s]=OPT_RANGE[k];return a+s*Math.floor(R()*((b-a)/s+1))};
+  let best=null,bs=-Infinity,n=0;
+  const cand=c=>{n++;const s=score(c);if(s>bs){bs=s;best=c}};
+  cand({...c0,...Object.fromEntries(keys.map(k=>[k,OPT_RANGE[k][0]===0?0:c0[k]]))});
+  for(let i=0;i<700;i++){const c={...c0};keys.forEach(k=>c[k]=rnd(k));cand(c)}
+  for(let pass=0;pass<4;pass++){let moved=false;
+    for(const k of keys){const [a,b,s]=OPT_RANGE[k];
+      for(const d of [-s,s]){const c={...best,[k]:clamp(best[k]+d,a,b)};if(c[k]===best[k])continue;const sc=score(c);n++;if(sc>bs){bs=sc;best=c;moved=true}}}
+    if(!moved)break;}
+  return {cfg:best,tested:n,feasible:bs>-1e11};
+}
+
+/* ---------- agent diagnosis ---------- */
+function rangeTxt(idx){if(!idx.length)return '';const g=[];let s=idx[0],p=idx[0];
+  for(let i=1;i<=idx.length;i++){if(idx[i]!==p+1){g.push(s===p?MONTHS[s]:MONTHS[s]+'–'+MONTHS[p]);s=idx[i];}p=idx[i]}
+  return g.join(', ')}
+function diagnose(c,r){
+  const rk=RES.map((n,i)=>({n,i,peak:r.peak[i],pm:MONTHS[r.peakM[i]],over:r.over[i],lost:r.lostBy[n]||0}));
+  rk.sort((a,b)=>b.lost-a.lost||b.peak-a.peak);
+  const lostIdx=r.M.filter(m=>m.lost>1).map(m=>m.t);
+  const pkD=r.M.reduce((a,m)=>m.dem>a.dem?m:a,r.M[0]);
+  return {rk,top:rk[0],lostIdx,pkD};
+}
+function evalCfg(c){const r=sim(c);return {r,fill:r.T.fill,profit:r.T.profit}}
+const ACTS=[
+ {k:'hires',s:10,t:'Hire 10 operators'},{k:'ot',s:5,t:'Allow 5 more points of overtime'},
+ {k:'shift',s:10,t:'Add 10% second-shift machine hours'},{k:'sup',s:10,t:'Boost supplier allocation by 10%'},
+ {k:'trucks',s:2,t:'Lease 2 more trucks'},{k:'pl',s:1000,t:'Contract 1,000 units a month of 3PL'},
+ {k:'wh',s:1500,t:'Rent 1,500 units of warehouse space'},{k:'fgD',s:5,t:'Pre-build 5 more days of stock'},
+ {k:'rmW',s:1,t:'Hold one more week of raw material'}];
+const LMAX=Object.fromEntries(LEVERS.map(l=>[l.k,l.max]));
+function recommend(c,r){
+  const base=evalCfg(c),out=[];
+  if(r.T.fill<c.target/100-1e-6){
+    ACTS.forEach(a=>{if(c[a.k]>=LMAX[a.k])return;const n={...c,[a.k]:Math.min(LMAX[a.k],c[a.k]+a.s)},e=evalCfg(n);
+      const df=e.fill-base.fill,dp=e.profit-base.profit;if(df>0.002)out.push({a,n,df,dp,fill:e.fill,mode:'add'})});
+    out.sort((x,y)=>y.dp-x.dp);
+  }else{
+    ACTS.forEach(a=>{if(c[a.k]<=BASE0[a.k])return;const n={...c,[a.k]:Math.max(BASE0[a.k],c[a.k]-a.s)},e=evalCfg(n);
+      if(e.fill>=c.target/100&&e.profit>base.profit+1000)out.push({a:{...a,t:a.t.replace(/^Hire/,'Hire').replace('Allow','Allow')},n,df:e.fill-base.fill,dp:e.profit-base.profit,fill:e.fill,mode:'trim'})});
+    out.sort((x,y)=>y.dp-x.dp);
+  }
+  return out.slice(0,3);
+}
+
+/* ---------- state ---------- */
+const S={cfg:{...PRESETS[1][1]},saved:null,proposal:null,busy:false,show:{0:false,1:false,2:false,3:false,4:false},agentPlan:null,log:[],traceKey:''};
+let RES_,MC_,DG_;
+
+/* ---------- controls ---------- */
+function buildControls(){
+  const host=$('#levers');let html='',open=false;
+  LEVERS.forEach(l=>{ if(l.g){ if(open)html+='</div>'; html+=`<div class="grp"><h3>${l.g}</h3>`;open=true}
+    html+=`<div class="lv"><div class="top"><label for="in_${l.k}">${l.l}</label><output id="out_${l.k}" for="in_${l.k}"></output></div>
+      <input type="range" id="in_${l.k}" data-k="${l.k}" min="${l.min}" max="${l.max}" step="${l.step}"><div class="h">${l.h}</div></div>`});
+  host.innerHTML=html+'</div>';
+  host.addEventListener('input',e=>{const k=e.target.dataset.k;if(!k)return;S.cfg[k]=+e.target.value;S.proposal=null;update()});
+  $('#presets').innerHTML=PRESETS.map((p,i)=>`<button class="chip" type="button" data-p="${i}" aria-pressed="false">${p[0]}</button>`).join('');
+  $('#presets').addEventListener('click',e=>{const b=e.target.closest('[data-p]');if(!b)return;S.cfg={...PRESETS[+b.dataset.p][1]};S.proposal=null;update()});
+  $('#reset').onclick=()=>{S.cfg={...BASE0};S.proposal=null;update()};
+}
+function syncControls(){
+  LEVERS.forEach(l=>{const i=$('#in_'+l.k);i.value=S.cfg[l.k];$('#out_'+l.k).textContent=l.f(S.cfg[l.k])});
+  document.querySelectorAll('#presets .chip').forEach((b,i)=>{const p=PRESETS[i][1];b.setAttribute('aria-pressed',String(Object.keys(p).every(k=>p[k]===S.cfg[k])))});
+}
+
+/* ---------- render ---------- */
+function update(){
+  const c=S.cfg;RES_=sim(c);MC_=mcRun(c);DG_=diagnose(c,RES_);
+  syncControls();renderHero();renderTrace();renderRecs();if(!S.busy)renderPlan();drawAll();renderHeat();renderRank();renderMcStats();renderCmp();
+}
+function hdr(){return verdict(S.cfg,RES_,MC_)}
+function renderHero(){
+  const c=S.cfg,r=RES_,T=r.T,v=hdr(),real=T.shipped/BASE.T.shipped-1,dp=T.profit-BASE.T.profit;
+  $('#qh').textContent=`Can the business support ${c.growth>0?'+'+c.growth+'%':'today\'s'} sales${c.disc?' with a '+c.disc+'% promo':''}?`;
+  const top=DG_.top, when=rangeTxt(DG_.lostIdx);
+  let a;
+  if(v==='good')a=`Yes. This plan ships ${pc(T.fill)} of demand, realises ${real>=0?'+':''}${(real*100).toFixed(1)}% sales growth and moves annual profit by ${inr(dp,true)}. ${MC_.pSvc>=.9?'It holds up in most demand swings.':'It holds up in '+Math.round(MC_.pSvc*100)+'% of simulated demand swings.'}`;
+  else if(v==='warn')a=`Only just. You would realise ${(real*100).toFixed(1)}% growth, shipping ${pc(T.fill)} of demand${when?' with gaps in '+when:''}. ${top.lost>0?top.n+' is the first wall, losing '+nf(top.lost)+' units.':'Load stays above 100% on '+RES[RES.indexOf(top.n)]+' for '+top.over+' month'+(top.over===1?'':'s')+'.'}`;
+  else a=`Not with this setup. You would realise ${(real*100).toFixed(1)}% growth, not ${c.growth}%. ${nf(T.lost)} units (${inr(T.lostRev)} of sales) go unfilled, mostly in ${when||'peak months'}. ${top.n} is the first wall, peaking at ${pc(top.peak,0)} load in ${top.pm}.`;
+  $('#answer').textContent=a;
+  const vp=`<i></i>${VTXT[v]}`;
+  ['#vPill'].forEach(s=>{$(s).className='pill '+v;$(s).innerHTML=vp});
+  $('#lFill').textContent=pc(T.fill);
+  const lp=$('#lProf');lp.textContent=inr(dp,true);lp.className='mono '+(dp>=0?'up':'dn');
+  const k=[
+   ['Sales growth realised',(real>=0?'+':'')+(real*100).toFixed(1)+'%',`target +${c.growth}%`,real*100>=c.growth-.5?'up':'dn'],
+   ['Fill rate',pc(T.fill),`goal ${c.target}% · ${nf(T.lost)} units lost`,T.fill>=c.target/100?'up':'dn'],
+   ['Annual revenue',inr(T.rev),`${inr(T.rev-BASE.T.rev,true)} vs today`,T.rev>=BASE.T.rev?'up':'dn'],
+   ['Annual profit',inr(T.profit),`${inr(dp,true)} vs today`,dp>=0?'up':'dn'],
+   ['Chance of hitting goal',Math.round(MC_.pSvc*100)+'%',`worst-decile fill ${pc(MC_.fillP10)}`,MC_.pSvc>=.75?'up':'dn']];
+  $('#kpis').innerHTML=k.map(x=>`<div class="kpi"><div class="l">${x[0]}</div><div class="v">${x[1]}</div><div class="c ${x[3]}">${x[2]}</div></div>`).join('');
+}
+function traceLines(){
+  const c=S.cfg,r=RES_,T=r.T,d=DG_,L=[];
+  L.push(['Perceive',`Scenario asks for ${nf(T.dem)} units over 12 months (${c.growth>0?'+'+c.growth+'% growth':'no growth'}), peaking at ${nf(d.pkD.dem)} in ${MONTHS[d.pkD.t]}. Today's workforce tops out near ${nf(K.E0*K.uph)} units a month.`]);
+  if(T.lost>1)L.push(['Diagnose',`${d.top.n} is the first wall: ${nf(d.top.lost)} units lost, load peaking at ${pc(d.top.peak,0)} in ${d.top.pm}.`+(d.rk[1]&&d.rk[1].lost>0?` ${d.rk[1].n} also cuts ${nf(d.rk[1].lost)} units.`:'')]);
+  else L.push(['Diagnose',`No month loses sales. Tightest resource is ${d.rk.slice().sort((a,b)=>b.peak-a.peak)[0].n} at ${pc(Math.max(...r.peak),0)} load in ${d.rk.slice().sort((a,b)=>b.peak-a.peak)[0].pm}.`+(T.otMax>.15?` Overtime reaches ${pc(T.otMax,0)} of hours, which risks burnout.`:'')]);
+  return L;
+}
+function renderTrace(){
+  if(S.busy)return;
+  const L=traceLines(),recs=S._recs=recommend(S.cfg,RES_);
+  if(recs.length&&recs[0].mode==='add')L.push(['Plan',`Tested ${ACTS.length} single actions on the model. Best first move: ${recs[0].a.t.toLowerCase()}, which lifts fill rate by ${(recs[0].df*100).toFixed(1)} points.`]);
+  else if(recs.length)L.push(['Plan',`Target is met. Scaling back ${recs[0].a.t.toLowerCase().replace(/^(add|hire|allow|boost|lease|contract|rent|pre-build|hold)\s/,'')} would still hold it and save ${inr(recs[0].dp)}.`]);
+  else L.push(['Plan',RES_.T.fill>=S.cfg.target/100?'Target is met and no single trim keeps it that way.':'No single action closes the gap. Try Auto-optimise to search combinations.']);
+  L.push(['Act','Waiting for you. Nothing is applied until you approve it.']);
+  const key=JSON.stringify(L);if(key===S.traceKey)return;S.traceKey=key;
+  $('#trace').innerHTML=L.map(x=>`<li><span class="tag">${x[0]}</span><span>${x[1]}</span></li>`).join('');
+}
+function renderRecs(){
+  if(S.busy)return;const recs=S._recs||[];
+  $('#recs').innerHTML=recs.map((x,i)=>`<div class="rec"><b>${x.a.t}</b><span class="m">Fill ${pc(x.fill)} (${x.df>=0?'+':''}${(x.df*100).toFixed(1)} pts) · profit ${inr(x.dp,true)}</span><button class="btn" type="button" data-r="${i}">${x.mode==='trim'?'Approve trim':'Approve'}</button></div>`).join('');
+}
+$('#recs').addEventListener('click',e=>{const b=e.target.closest('[data-r]');if(!b)return;const x=S._recs[+b.dataset.r];S.cfg={...x.n};S.proposal=null;update();say('a',`Applied: ${x.a.t}. Fill rate is now ${pc(RES_.T.fill)} and annual profit ${inr(RES_.T.profit-BASE.T.profit,true)} versus today.`)});
+function renderPlan(){
+  const p=S.proposal,h=$('#plan');if(!p){h.innerHTML='';return}
+  const rows=Object.keys(OPT_RANGE).filter(k=>p.cfg[k]!==S.cfg[k]).map(k=>{const l=LEVERS.find(x=>x.k===k);return `<tr><td>${l.l}</td><td>${l.f(S.cfg[k])} → ${l.f(p.cfg[k])}</td></tr>`}).join('');
+  const e=sim(p.cfg),m=mcRun(p.cfg),dv=verdict(p.cfg,e,m);
+  h.innerHTML=`<div class="plan"><h4>Proposed plan <span class="pill ${dv}"><i></i>${VTXT[dv]}</span></h4>
+    <div class="fine" style="margin:0">Searched ${nf(p.tested)} lever combinations. ${p.feasible?'Highest-profit plan that meets the target:':'No plan reaches the target. Closest found:'} fill ${pc(e.T.fill)}, annual profit ${inr(e.T.profit-BASE.T.profit,true)} vs today, ${Math.round(m.pSvc*100)}% chance of hitting the goal.</div>
+    <table>${rows||'<tr><td>No changes needed</td><td></td></tr>'}</table>
+    <div class="row"><button class="btn" type="button" id="okp">Approve and apply</button><button class="btn alt" type="button" id="nop">Discard</button></div></div>`;
+  $('#okp').onclick=()=>{S.cfg={...p.cfg};S.proposal=null;update();say('a','Plan applied. You can still adjust any lever by hand.')};
+  $('#nop').onclick=()=>{S.proposal=null;renderPlan()};
+}
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+async function runOptimise(){
+  if(S.busy)return;S.busy=true;$('#opt').disabled=true;S.proposal=null;$('#plan').innerHTML='';$('#recs').innerHTML='';
+  const tr=$('#trace');tr.innerHTML='';
+  const add=(t,x)=>{const li=document.createElement('li');li.className='new';li.innerHTML=`<span class="tag">${t}</span><span>${x}</span>`;tr.appendChild(li)};
+  const L=traceLines();add(L[0][0],L[0][1]);await sleep(450);add(L[1][0],L[1][1]);await sleep(500);
+  add('Plan','Searching workforce, shifts, supply, stock, warehouse and fleet combinations on the simulator…');await sleep(300);
+  const o=optimise(S.cfg);S.agentPlan=o.cfg;
+  add('Plan',`Evaluated ${nf(o.tested)} combinations against 40 demand scenarios each. ${o.feasible?'Kept the highest-profit plan that meets the service target in at least 80% of them.':'None met the target, so keeping the closest.'}`);await sleep(450);
+  add('Act','Plan drafted below. Review it, then approve or discard.');
+  S.busy=false;$('#opt').disabled=false;S.proposal=o;S.traceKey='';renderPlan();
+  say('a',`I drafted a plan after testing ${nf(o.tested)} combinations. Check the table under Scenario agent and approve it if you are happy.`);
+}
+$('#opt').onclick=runOptimise;
+
+/* ---------- chat ---------- */
+const SUGG=['What is the bottleneck?','What if sales grow 30%?','Hire 20 people','Add a second shift','How risky is this?','Find the best plan'];
+function say(w,t){S.log.push([w,t]);const l=$('#log');l.insertAdjacentHTML('beforeend',`<div class="msg ${w}"></div>`);l.lastChild.textContent=t;l.scrollTop=l.scrollHeight}
+function summary(){const T=RES_.T,v=hdr();return `Verdict: ${VTXT[v]}. Fill ${pc(T.fill)}, profit ${inr(T.profit-BASE.T.profit,true)} vs today, ${Math.round(MC_.pSvc*100)}% chance of meeting the ${S.cfg.target}% goal.`}
+function ask(q){
+  const t=q.toLowerCase(),ch=[],c=S.cfg;let m;
+  const set=(k,v,txt)=>{c[k]=clamp(v,LEVERS.find(l=>l.k===k).min,LEVERS.find(l=>l.k===k).max);ch.push(txt)};
+  if((m=t.match(/(?:sales|growth|demand|target|increase|grow)[^0-9]{0,24}(\d+(?:\.\d+)?)\s*%/))||(m=t.match(/(\d+(?:\.\d+)?)\s*%\s*(?:more\s*)?(?:sales|growth|demand)/)))set('growth',Math.round(+m[1]),`sales growth to +${Math.min(40,Math.round(+m[1]))}%`);
+  if((m=t.match(/(?:discount|promo)[^0-9]{0,12}(\d+)/))||(m=t.match(/(\d+)\s*%\s*(?:discount|promo)/)))set('disc',+m[1],`promo discount ${m[1]}%`);
+  if((m=t.match(/overtime[^0-9]{0,12}(\d+)/))||(m=t.match(/(\d+)\s*%\s*overtime/)))set('ot',+m[1],`overtime +${m[1]}%`);
+  if((m=t.match(/(?:hire|hiring|add)\s*(\d+)/))||(m=t.match(/(\d+)\s*(?:more\s*)?(?:people|employees|staff|workers|operators|hires)/)))set('hires',+m[1],`${m[1]} new hires`);
+  if((m=t.match(/(\d+)\s*(?:more\s*)?trucks?/)))set('trucks',+m[1],`${m[1]} extra trucks`);
+  if(/second shift|night shift|2nd shift/.test(t)&&!ch.some(x=>/shift/.test(x)))set('shift',20,'second shift (+20% machine hours)');
+  if(/3pl|outsourc/.test(t))set('pl',2000,'2,000 units a month of 3PL');
+  if(/warehouse|storage/.test(t)&&!/bottleneck/.test(t))set('wh',2000,'2,000 units of extra warehouse');
+  if(/reset|baseline|start over|as usual/.test(t)){S.cfg={...BASE0};S.proposal=null;update();return say('a','Back to today\'s operations with no growth. '+summary())}
+  if(ch.length){S.proposal=null;update();return say('a',`Applied ${ch.join(', ')}.\n${summary()}`+(RES_.T.lost>1?`\nStill losing ${nf(RES_.T.lost)} units, mostly at ${DG_.top.n}.`:''))}
+  if(/optimi|best plan|find the best|fix|what should|recommend/.test(t)){say('a','Running the optimiser…');return runOptimise()}
+  if(/bottleneck|constraint|why|stuck|wall|break/.test(t)){const d=DG_;return say('a',RES_.T.lost>1?`${d.top.n} breaks first, losing ${nf(d.top.lost)} units around ${rangeTxt(DG_.lostIdx)}. Peak loads: ${d.rk.slice().sort((a,b)=>b.peak-a.peak).map(x=>x.n+' '+pc(x.peak,0)).join(', ')}.`:`Nothing breaks. Peak loads: ${d.rk.slice().sort((a,b)=>b.peak-a.peak).map(x=>x.n+' '+pc(x.peak,0)).join(', ')}.`)}
+  if(/risk|probab|confiden|volatil|safe/.test(t))return say('a',`Across ${RUNS} simulated years at ±${c.vol}% volatility, fill rate averages ${pc(MC_.fillMean)}, with the worst decile at ${pc(MC_.fillP10)}. Profit ranges ${inr(MC_.p10)} to ${inr(MC_.p90)} (p10 to p90). ${Math.round(MC_.pSvc*100)}% of years meet the ${c.target}% goal.`);
+  if(/profit|cost|margin|money|roi|revenue/.test(t)){const T=RES_.T;return say('a',`Revenue ${inr(T.rev)}, profit ${inr(T.profit)} (${inr(T.profit-BASE.T.profit,true)} vs today). Lost-sale penalty ${inr(T.pen)}, labour ${inr(T.lab)}, materials ${inr(T.mat)}.`)}
+  if(/peak|festive|diwali|season/.test(t))return say('a',`Demand peaks in ${MONTHS[DG_.pkD.t]} at ${nf(DG_.pkD.dem)} units. Festive months (Nov, Oct) are where most scenarios fail, so stock built in Sep and Oct matters.`);
+  if(/compare|table/.test(t)){$('#cmp').scrollIntoView({behavior:'smooth'});return say('a','The comparison table shows six strategies side by side. Select a row to load it.')}
+  say('a','I can change levers ("sales growth 30%", "hire 20 people", "overtime 15%", "2 trucks"), explain the bottleneck, estimate risk, or "find the best plan".');
+}
+$('#askf').addEventListener('submit',e=>{e.preventDefault();const i=$('#askin'),q=i.value.trim();if(!q)return;i.value='';say('u',q);ask(q)});
+$('#sugg').innerHTML=SUGG.map(s=>`<button class="chip" type="button">${s}</button>`).join('');
+$('#sugg').addEventListener('click',e=>{const b=e.target.closest('.chip');if(!b)return;say('u',b.textContent);ask(b.textContent)});
+
+/* ---------- charts ---------- */
+const DASH={0:'',1:'6 4',2:'2 3',3:'9 3 2 3',4:'1 0'};
+function renderLegend(){
+  const items=[['Demand','var(--ink)',null,true],['Max deliverable','var(--accent)',null,true],['Shipped','var(--accent)',null,true]];
+  let h=`<span class="lg" style="opacity:1"><svg viewBox="0 0 18 8"><line x1="0" y1="4" x2="18" y2="4" stroke="var(--ink)" stroke-width="2.5"/></svg>Demand</span>
+   <span class="lg" style="opacity:1"><svg viewBox="0 0 18 8"><line x1="0" y1="4" x2="18" y2="4" stroke="var(--accent)" stroke-width="2.5"/></svg>Max deliverable</span>
+   <span class="lg" style="opacity:1"><svg viewBox="0 0 18 8"><rect width="18" height="8" rx="2" fill="var(--accent)" opacity=".25"/></svg>Shipped</span>
+   <span class="lg" style="opacity:1"><svg viewBox="0 0 18 8"><circle cx="9" cy="4" r="3.5" fill="var(--bad)"/></svg>Shortfall month</span>`;
+  [0,1,2,4].forEach(i=>{h+=`<button class="lg" type="button" data-s="${i}" aria-pressed="${S.show[i]}"><svg viewBox="0 0 18 8"><line x1="0" y1="4" x2="18" y2="4" stroke="var(${RCOL[i]})" stroke-width="2" stroke-dasharray="${DASH[i]}"/></svg>${RES[i]} limit</button>`});
+  $('#capLegend').innerHTML=h;
+}
+$('#capLegend').addEventListener('click',e=>{const b=e.target.closest('[data-s]');if(!b)return;S.show[b.dataset.s]=!S.show[b.dataset.s];renderLegend();drawCap()});
+function drawCap(){
+  const el=$('#cap'),w=Math.max(280,el.clientWidth);if(!RES_)return;const M=RES_.M,h=clamp(w*.46,250,350),m={l:50,r:12,t:12,b:30},iw=w-m.l-m.r,ih=h-m.t-m.b;
+  let ym=Math.max(...M.map(d=>Math.max(d.dem,d.deliver)))*1.08;ym=Math.ceil(ym/2500)*2500;
+  const x=i=>m.l+10+(iw-20)*i/11,y=v=>m.t+ih*(1-Math.min(v,ym*1.05)/ym);
+  const line=f=>M.map((d,i)=>(i?'L':'M')+x(i).toFixed(1)+' '+y(f(d)).toFixed(1)).join('');
+  let s=`<svg viewBox="0 0 ${w} ${h}" height="${h}" role="img" aria-label="Monthly demand against maximum deliverable capacity"><defs><clipPath id="cp"><rect x="${m.l}" y="${m.t}" width="${iw}" height="${ih}"/></clipPath></defs><g class="grid">`;
+  for(let i=0;i<=5;i++){const v=ym*i/5;s+=`<line x1="${m.l}" x2="${w-m.r}" y1="${y(v)}" y2="${y(v)}"/>`}
+  s+='</g><g class="ax">';for(let i=0;i<=5;i++){const v=ym*i/5;s+=`<text x="${m.l-8}" y="${y(v)+4}" text-anchor="end">${v>=1000?(v/1000)+'k':v}</text>`}
+  M.forEach((d,i)=>{s+=`<text x="${x(i)}" y="${h-10}" text-anchor="middle">${MONTHS[i]}</text>`});s+='</g>';
+  s+=`<path d="${line(d=>d.shipped)}L${x(11)} ${y(0)}L${x(0)} ${y(0)}Z" fill="var(--accent)" opacity=".16"/>`;
+  s+='<g clip-path="url(#cp)">';
+  const lim={0:d=>d.laborCap,1:d=>d.machCap,2:d=>d.rmCap,4:d=>d.logCap};
+  Object.keys(lim).forEach(i=>{if(S.show[i])s+=`<path d="${line(lim[i])}" fill="none" stroke="var(${RCOL[i]})" stroke-width="1.6" stroke-dasharray="${DASH[i]}"/>`});
+  s+=`<path d="${line(d=>d.deliver)}" fill="none" stroke="var(--accent)" stroke-width="2.6" stroke-linejoin="round"/>`;
+  s+=`<path d="${line(d=>d.dem)}" fill="none" stroke="var(--ink)" stroke-width="2.6" stroke-linejoin="round"/></g>`;
+  M.forEach((d,i)=>{if(d.lost>1)s+=`<circle cx="${x(i)}" cy="${y(0)-9}" r="4.5" fill="var(--bad)" stroke="var(--surface)" stroke-width="2"/>`});
+  s+=`<line id="xh" y1="${m.t}" y2="${m.t+ih}" stroke="var(--ink3)" stroke-width="1" style="display:none"/>`;
+  s+=`<rect id="hit" x="${m.l}" y="${m.t}" width="${iw}" height="${ih}" fill="transparent"/></svg><div class="tip" id="tip" hidden></div>`;
+  el.innerHTML=s;
+  const hit=el.querySelector('#hit'),xh=el.querySelector('#xh'),tip=el.querySelector('#tip');
+  const move=ev=>{const r=el.getBoundingClientRect(),px=ev.clientX-r.left;let i=Math.round((px-m.l-10)/((iw-20)/11));i=clamp(i,0,11);const d=M[i];
+    xh.setAttribute('x1',x(i));xh.setAttribute('x2',x(i));xh.style.display='';
+    tip.hidden=false;tip.innerHTML=`<b>${MONTHS[i]}</b><div><span>Demand</span><span>${nf(d.dem)}</span></div><div><span>Shipped</span><span>${nf(d.shipped)}</span></div><div><span>Max deliverable</span><span>${nf(d.deliver)}</span></div><div><span>Lost sales</span><span>${nf(d.lost)}</span></div>${d.bind?`<div><span>Blocked by</span><span>${d.bind}</span></div>`:''}`;
+    const tw=tip.offsetWidth;tip.style.left=clamp(x(i)+14,0,w-tw)+'px';tip.style.top='8px'};
+  hit.addEventListener('pointermove',move);hit.addEventListener('pointerdown',move);
+  hit.addEventListener('pointerleave',()=>{xh.style.display='none';tip.hidden=true});
+}
+function renderHeat(){
+  let h='<div></div>'+MONTHS.map(m=>`<div class="ch">${m}</div>`).join('');
+  RES.forEach((n,r)=>{h+=`<div class="rl"><i style="background:var(${RCOL[r]})"></i>${n}</div>`;
+    RES_.M.forEach((d,t)=>{const u=d.u[r],p=Math.round(u*100),cl=u>1.001?'cell hot':u>=.85?'cell tight':'cell',
+      st=u<.85?`style="background:color-mix(in srgb,var(--accent) ${Math.round(12+u*40)}%,var(--surface))"`:'';
+      h+=`<div class="${cl}" ${st} title="${n}, ${MONTHS[t]}: ${p}% load">${p}</div>`})});
+  $('#heat').innerHTML=h;
+}
+function renderRank(){
+  const rk=DG_.rk.slice().sort((a,b)=>b.peak-a.peak),max=1.4;
+  $('#rank').innerHTML=rk.map(x=>{const col=x.peak>1.001?'var(--bad)':x.peak>=.85?'var(--warn)':'var(--good)';
+    return `<div class="rk"><div class="t"><span style="display:flex;align-items:center;gap:7px"><i style="width:9px;height:9px;border-radius:2px;background:var(${RCOL[x.i]})"></i>${x.n}</span><span>${pc(x.peak,0)} peak · ${x.pm}</span></div>
+    <div class="track"><b style="width:${clamp(x.peak/max,0,1)*100}%;background:${col}"></b><u style="left:${100/max}%"></u></div>
+    <div class="n">${x.over?x.over+' month'+(x.over>1?'s':'')+' over 100%':'Never over 100%'} · ${x.lost>0?nf(x.lost)+' units lost here':'no sales lost here'}</div></div>`}).join('');
+}
+function drawWF(){
+  const el=$('#wf'),w=Math.max(260,el.clientWidth);if(!RES_)return;const T=RES_.T,B=BASE.T;
+  const steps=[['Profit today',B.profit,'total'],['Revenue',T.rev-B.rev],['Materials',-(T.mat-B.mat)],['Labour and overtime',-(T.lab-B.lab)],['Shifts, fleet, space',-(T.fixed-B.fixed)],['Logistics',-(T.logc-B.logc)],['Stock holding',-(T.hold-B.hold)],['Lost-sale penalty',-(T.pen-B.pen)],['Scenario profit',T.profit,'total']];
+  let run=0,pts=steps.map(s=>{let a,b;if(s[2]){a=0;b=s[1];run=s[1]}else{a=run;b=run+s[1];run=b}return {n:s[0],a,b,v:s[1],t:!!s[2]}});
+  const lo=Math.min(0,...pts.map(p=>Math.min(p.a,p.b))),hi=Math.max(...pts.map(p=>Math.max(p.a,p.b)));
+  const lw=118,rw=76,iw=w-lw-rw,rh=28,h=pts.length*rh+8,sx=v=>lw+iw*(v-lo)/(hi-lo||1);
+  let s=`<svg viewBox="0 0 ${w} ${h}" height="${h}" role="img" aria-label="Profit change by cost line"><g class="ax">`;
+  s+=`<line x1="${sx(0)}" x2="${sx(0)}" y1="0" y2="${h}" stroke="var(--line)"/>`;
+  pts.forEach((p,i)=>{const y=4+i*rh,x1=sx(Math.min(p.a,p.b)),x2=sx(Math.max(p.a,p.b)),col=p.t?'var(--accent)':p.v>=0?'var(--good)':'var(--bad)';
+    s+=`<text x="${lw-8}" y="${y+rh/2+1}" text-anchor="end" style="fill:var(--ink2);font-family:var(--f-body);font-size:12px">${p.n}</text>`;
+    s+=`<rect x="${x1}" y="${y+5}" width="${Math.max(2,x2-x1)}" height="${rh-12}" rx="3" fill="${col}"/>`;
+    const lab=p.t?inr(p.v):(p.v>=0?'▲ ':'▼ ')+inr(Math.abs(p.v));
+    s+=`<text x="${w-4}" y="${y+rh/2+1}" text-anchor="end" style="fill:var(--ink);font-size:11.5px">${lab}</text>`});
+  el.innerHTML=s+'</g></svg>';
+}
+function drawMC(){
+  const el=$('#mc'),w=Math.max(280,el.clientWidth);if(!MC_)return;const h=clamp(w*.3,170,230),m={l:12,r:12,t:18,b:42},iw=w-m.l-m.r,ih=h-m.t-m.b;
+  const P=MC_.profits,lo=Math.min(...P,BASE.T.profit),hi=Math.max(...P,BASE.T.profit),nb=24,bw=(hi-lo||1)/nb,bins=Array(nb).fill(0);
+  P.forEach(p=>bins[Math.min(nb-1,Math.floor((p-lo)/bw))]++);const mx=Math.max(...bins);
+  const x=v=>m.l+iw*(v-lo)/(hi-lo||1),y=n=>m.t+ih*(1-n/mx);
+  let s=`<svg viewBox="0 0 ${w} ${h}" height="${h}" role="img" aria-label="Distribution of annual profit across simulated years"><g class="grid"><line x1="${m.l}" x2="${w-m.r}" y1="${m.t+ih}" y2="${m.t+ih}"/></g>`;
+  bins.forEach((n,i)=>{const bx=m.l+iw*i/nb;s+=`<rect x="${bx+1}" y="${y(n)}" width="${Math.max(1,iw/nb-2)}" height="${m.t+ih-y(n)}" rx="2" fill="var(--accent)" opacity=".8"><title>${inr(lo+i*bw)} to ${inr(lo+(i+1)*bw)}: ${n} years</title></rect>`});
+  const mark=(v,l,c,dy)=>`<line x1="${x(v)}" x2="${x(v)}" y1="${m.t-6}" y2="${m.t+ih}" stroke="${c}" stroke-width="2" ${l==='Today'?'stroke-dasharray="4 3"':''}/><text x="${clamp(x(v),30,w-30)}" y="${h-dy}" text-anchor="middle" style="fill:var(--ink2);font-size:11px;font-family:var(--f-mono)">${l} ${inr(v)}</text>`;
+  s+=mark(BASE.T.profit,'Today','var(--ink)',6)+mark(MC_.p50,'Median','var(--warn)',22);
+  el.innerHTML=s+'</svg>';
+}
+function renderMcStats(){
+  $('#mcs').innerHTML=[['Years meeting fill goal',Math.round(MC_.pSvc*100)+'%'],['Years beating today\'s profit',Math.round(MC_.pBeat*100)+'%'],['Profit range p10 to p90',inr(MC_.p10)+' – '+inr(MC_.p90)]].map(x=>`<div><span>${x[0]}</span><b>${x[1]}</b></div>`).join('');
+}
+function rowData(name,cfg){const r=sim(cfg),m=mcRun(cfg,80);return {name,cfg,r,m,v:verdict(cfg,r,m)}}
+function renderCmp(){
+  const rows=PRESETS.map(p=>rowData(p[0],p[1]));
+  if(S.agentPlan)rows.push(rowData('Agent-optimised plan',S.agentPlan));
+  if(S.saved)rows.push(rowData('My scenario',S.saved));
+  rows.push(rowData('Current levers',S.cfg));
+  $('#cmp').innerHTML=`<thead><tr><th>Strategy</th><th>Sales vs today</th><th>Fill rate</th><th>Annual profit</th><th>vs today</th><th>Peak load</th><th>Goal hit</th><th>Verdict</th></tr></thead><tbody>`+rows.map((x,i)=>{
+    const T=x.r.T,g=T.shipped/BASE.T.shipped-1,dp=T.profit-BASE.T.profit,cur=x.name==='Current levers';
+    return `<tr class="${cur?'cur':''}"><td>${cur?x.name:`<button type="button" data-c="${i}">${x.name}</button>`}</td><td>${g>=0?'+':''}${(g*100).toFixed(1)}%</td><td>${pc(T.fill)}</td><td>${inr(T.profit)}</td><td class="${dp>=0?'up':'dn'}">${inr(dp,true)}</td><td>${pc(Math.max(...x.r.peak),0)}</td><td>${Math.round(x.m.pSvc*100)}%</td><td><span class="pill ${x.v}"><i></i>${VTXT[x.v]}</span></td></tr>`}).join('')+'</tbody>';
+  S._rows=rows;
+}
+$('#cmp').addEventListener('click',e=>{const b=e.target.closest('[data-c]');if(!b)return;S.cfg={...S._rows[+b.dataset.c].cfg};S.proposal=null;update();window.scrollTo({top:0,behavior:'smooth'})});
+$('#save').onclick=()=>{S.saved={...S.cfg};renderCmp();say('a','Saved your current levers as "My scenario" in the comparison table.')};
+function drawAll(){drawCap();drawWF();drawMC()}
+new ResizeObserver(()=>{drawAll()}).observe($('.main'));
+
+/* ---------- assumptions ---------- */
+function renderAssume(){
+  const g=(t,rows)=>`<div><h4>${t}</h4><dl>${rows.map(r=>`<div><dt>${r[0]}</dt><dd>${r[1]}</dd></div>`).join('')}</dl></div>`;
+  $('#assume').innerHTML=g('Demand',[['Baseline sales',nf(K.baseDemand)+' units/mo'],['Price per unit','₹'+nf(K.price)],['Peak months','Nov 1.10×, Oct 1.07×'],['Low months','Feb 0.91×, Jan 0.93×'],['Price elasticity','1.6']])
+   +g('People and plant',[['Employees',K.E0],['Output per employee',K.uph+' units/mo'],['Wage','₹'+nf(K.wage)+'/mo'],['Machine capacity',nf(K.machCap)+' units/mo'],['Overtime efficiency','85%']])
+   +g('Supply and stock',[['Supplier capacity',nf(K.supCap)+' units/mo'],['Material cost','₹'+K.mat+'/unit'],['Opening stock',nf(K.openFG)+' FG, '+nf(K.openRM)+' RM'],['Warehouse',nf(K.whCap)+' units'],['Holding cost','₹'+K.holdFG+' FG, ₹'+K.holdRM+' RM']])
+   +g('Logistics and overhead',[['Own fleet',K.trucks0+' trucks × '+K.truckCap],['Own delivery cost','₹'+K.ownLog+'/unit'],['3PL cost','₹'+K.plLog+'/unit'],['Fixed overhead','₹15 L/mo'],['Lost-sale penalty','₹'+K.lostPen+'/unit']]);
+}
+
+/* ---------- boot ---------- */
+$('#theme').onclick=()=>{const r=document.documentElement,dark=r.dataset.theme?r.dataset.theme==='dark':matchMedia('(prefers-color-scheme:dark)').matches;r.dataset.theme=dark?'light':'dark';drawAll()};
+const mq=matchMedia('(min-width:1061px)');const fitSide=()=>{if(mq.matches)$('#side').open=true;else $('#side').open=true};fitSide();
+buildControls();renderAssume();renderLegend();
+S.agentPlan=optimise({...BASE0,growth:20}).cfg;
+say('a','I am the scenario agent. Change any lever on the left, or ask me something like "what if sales grow 30% and we hire 20 people?". Right now the +20% push runs on today\'s capacity.');
+update();
+window.S=S;
+</script>
